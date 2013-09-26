@@ -1,6 +1,6 @@
 /*
 (c) 2012 Uzi Kilon, Splunk Inc.
-Backbone Poller 0.2.6
+Backbone Poller 0.2.7
 https://github.com/uzikilon/backbone-poller
 Backbone Poller may be freely distributed under the MIT license.
 */
@@ -88,11 +88,14 @@ Backbone Poller may be freely distributed under the MIT license.
     // Reset poller options and stops the poller
     // </pre>
     set: function (options) {
-      this.off();
       this.options = _.extend({}, defaults, options || {});
+      if (this.options.flush) {
+        this.off();
+      }
       _.each(events, function (name) {
         var callback = this.options[name];
         if (_.isFunction(callback)) {
+          this.off(name, callback, this);
           this.on(name, callback, this);
         }
       }, this);
@@ -114,7 +117,11 @@ Backbone Poller may be freely distributed under the MIT license.
       if (!this.active()) {
         options && options.silent || this.trigger('start', this.model);
         this.options.active = true;
-        run(this);
+        if (this.options.delayed) {
+          delayedRun(this);
+        } else {
+          run(this);
+        }
       }
       return this;
     },
@@ -144,21 +151,15 @@ Backbone Poller may be freely distributed under the MIT license.
   });
 
   function run(poller) {
-    if(poller.options.delayed) {
-      delayedRun(poller);
-      return;
-    }
     if (validate(poller)) {
       var options = _.extend({}, poller.options, {
-        success: function () {
-          poller.trigger('success', poller.model);
+        success: function (model, resp) {
+          poller.trigger('success', model, resp);
           delayedRun(poller);
         },
-        error: function () {
-          // keep a refernce to the XHR object so we can pass it to the error handler
-          var xhr = poller.xhr;
+        error: function (model, resp) {
           poller.stop({silent: true});
-          poller.trigger('error', poller.model, xhr);
+          poller.trigger('error', model, resp);
         }
       });
       poller.trigger('fetch', poller.model);
@@ -168,7 +169,6 @@ Backbone Poller may be freely distributed under the MIT license.
 
   function delayedRun(poller) {
     if (validate(poller)) {
-      poller.options.delayed = false;
       poller.timeoutId = _.delay(run, poller.options.delay, poller);
     }
   }

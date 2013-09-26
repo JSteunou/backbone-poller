@@ -139,6 +139,30 @@ describe("Handle events", function(){
 
   });
 
+  it("Should pass backbone arguments into success and error callbacks", function() {
+    var successSpy = sinon.spy();
+    var errorSpy = sinon.spy();
+
+    var model = this.model;
+    var dummyResp = { poller : "is awesome"};
+    spyOn(this.model, 'fetch').andCallFake(function(options){
+      options.success(model, dummyResp);
+      options.error(model, dummyResp);
+    });
+
+    this.mPoller.on('success', successSpy);
+    this.mPoller.on('error', errorSpy);
+    this.mPoller.start();
+
+    waitsFor(function(){
+      return successSpy.callCount === 1;
+    });
+
+    runs(function(){
+      expect(successSpy.calledWith(this.mPoller.model, dummyResp)).toBe(true);
+      expect(errorSpy.calledWith(this.mPoller.model, dummyResp)).toBe(true);
+    });
+  });
 
   it("Should fire a complete event when condition is satisfied", function() {
    var bool = true,
@@ -179,7 +203,7 @@ describe("Handle events", function(){
 
   });
 
-  it('Should flush all events when re-setting options', function(){
+  it('Should keep all events when re-setting options', function(){
     this.mPoller.on('foo', function(){});
     this.mPoller.on('bar', function(){});
     this.mPoller.on('baz', function(){});
@@ -191,7 +215,24 @@ describe("Handle events", function(){
 
     runs(function(){
       var calls = this.mPoller._callbacks || {};
-      expect(_(calls).size()).toBe(0);
+      expect(_(calls).size()).toBe(3);
+    });
+  });
+
+  it('Should rebind when re-setting options', function(){
+    var spy = sinon.spy();
+
+    this.mPoller.set({success: spy});
+    this.mPoller.set({success: spy});
+
+    this.mPoller.start();
+
+    waitsFor(function(){
+      return spy.called;
+    });
+
+    runs(function(){
+      expect(spy.calledOnce).toBe(true);
     });
   });
 
